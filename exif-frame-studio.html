@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EXIF 프레임 스튜디오</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Oswald:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css">
+<style>
+  :root{
+    --ink:#0B0D0F;
+    --panel:#131619;
+    --panel-2:#191D21;
+    --edge:#252A30;
+    --edge-soft:#1E2328;
+    --text:#E7EAEC;
+    --muted:#8B949C;
+    --dim:#5E666E;
+    --safelight:#F0A93B;      /* 암실 세이프라이트 앰버 */
+    --safelight-dim:#8A6220;
+    --emul:#7FD3C4;           /* 보조 강조: 현상액 시안 */
+    --danger:#E4685C;
+    --radius:10px;
+    --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+    --sans:'Pretendard','Pretendard Variable',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;background:var(--ink);color:var(--text);
+    font-family:var(--sans);font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;overflow:hidden;
+  }
+  button,input,select,textarea{font-family:inherit;color:inherit;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:#242A30;border-radius:99px;border:3px solid var(--panel);}
+  ::-webkit-scrollbar-thumb:hover{background:#333B43;}
+  :focus-visible{outline:2px solid var(--safelight);outline-offset:2px;border-radius:4px;}
+
+  /* ---------- 앱 셸 ---------- */
+  .app{display:grid;grid-template-rows:auto 1fr;height:100vh;height:100dvh;}
+  .topbar{
+    display:flex;align-items:center;gap:16px;
+    padding:0 18px;height:54px;
+    background:var(--panel);border-bottom:1px solid var(--edge);
+    flex:none;
+  }
+  .brand{display:flex;align-items:center;gap:10px;min-width:0;}
+  .aperture{width:20px;height:20px;flex:none;}
+  .aperture circle{fill:none;stroke:var(--safelight);stroke-width:1.6;}
+  .aperture path{fill:none;stroke:var(--safelight);stroke-width:1.3;opacity:.75;}
+  .brand h1{
+    margin:0;font-size:14px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;
+  }
+  .brand span{
+    font-family:var(--mono);font-size:10px;color:var(--dim);
+    letter-spacing:.14em;text-transform:uppercase;
+  }
+  .topbar-spacer{flex:1;}
+  .status{
+    font-family:var(--mono);font-size:11px;color:var(--dim);
+    display:flex;align-items:center;gap:7px;white-space:nowrap;
+  }
+  .status .dot{width:6px;height:6px;border-radius:99px;background:var(--dim);flex:none;}
+  .status.ok .dot{background:var(--emul);box-shadow:0 0 8px rgba(127,211,196,.6);}
+  .status.warn .dot{background:var(--safelight);}
+
+  .main{display:grid;grid-template-columns:344px 1fr;min-height:0;}
+
+  /* ---------- 사이드바 ---------- */
+  .sidebar{
+    background:var(--panel);border-right:1px solid var(--edge);
+    overflow-y:auto;overflow-x:hidden;min-height:0;
+    padding-bottom:40px;
+  }
+  .group{border-bottom:1px solid var(--edge-soft);}
+  .group > summary{
+    list-style:none;cursor:pointer;user-select:none;
+    display:flex;align-items:center;gap:9px;
+    padding:13px 16px;
+  }
+  .group > summary::-webkit-details-marker{display:none;}
+  .group > summary:hover{background:var(--panel-2);}
+  .group-idx{
+    font-family:var(--mono);font-size:10px;color:var(--dim);
+    letter-spacing:.1em;width:16px;flex:none;
+  }
+  .group-title{font-size:12.5px;font-weight:600;letter-spacing:-.005em;flex:1;}
+  .chev{width:11px;height:11px;flex:none;color:var(--dim);transition:transform .18s ease;}
+  .group[open] .chev{transform:rotate(90deg);}
+  .group[open] > summary .group-title{color:var(--text);}
+  .group-body{padding:2px 16px 18px;display:flex;flex-direction:column;gap:14px;}
+
+  .field{display:flex;flex-direction:column;gap:7px;}
+  .field-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+  label.lbl,.lbl{
+    font-size:11px;color:var(--muted);font-weight:500;letter-spacing:.01em;
+  }
+  .val{font-family:var(--mono);font-size:10.5px;color:var(--safelight);}
+
+  /* 드롭존 */
+  .drop{
+    border:1px dashed var(--edge);border-radius:var(--radius);
+    background:var(--panel-2);
+    padding:22px 14px;text-align:center;cursor:pointer;
+    transition:border-color .15s ease,background .15s ease;
+  }
+  .drop:hover,.drop.hot{border-color:var(--safelight);background:#1D2023;}
+  .drop .icon{color:var(--dim);margin-bottom:8px;}
+  .drop.hot .icon,.drop:hover .icon{color:var(--safelight);}
+  .drop b{display:block;font-size:12.5px;font-weight:600;margin-bottom:3px;}
+  .drop small{color:var(--dim);font-size:11px;font-family:var(--mono);}
+
+  .filecard{
+    display:flex;gap:11px;align-items:center;
+    background:var(--panel-2);border:1px solid var(--edge);border-radius:var(--radius);
+    padding:9px;
+  }
+  .filecard img{
+    width:44px;height:44px;object-fit:cover;border-radius:6px;flex:none;background:#000;
+  }
+  .filecard .meta{min-width:0;flex:1;}
+  .filecard .name{
+    font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .filecard .sub{font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:2px;}
+  .icon-btn{
+    background:none;border:1px solid var(--edge);border-radius:6px;
+    width:28px;height:28px;flex:none;cursor:pointer;color:var(--muted);
+    display:grid;place-items:center;transition:.15s;
+  }
+  .icon-btn:hover{border-color:var(--danger);color:var(--danger);}
+
+  /* 템플릿 갤러리 */
+  .tpl-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+  .tpl{
+    border:1px solid var(--edge);border-radius:8px;overflow:hidden;
+    background:var(--panel-2);cursor:pointer;padding:0;text-align:left;
+    transition:border-color .15s ease,transform .15s ease;
+  }
+  .tpl:hover{border-color:#3A424A;transform:translateY(-1px);}
+  .tpl.active{border-color:var(--safelight);box-shadow:0 0 0 1px var(--safelight);}
+  .tpl canvas{display:block;width:100%;height:88px;object-fit:contain;background:#0E1113;}
+  .tpl .name{
+    padding:6px 8px 7px;font-size:11px;font-weight:600;
+    display:flex;align-items:center;justify-content:space-between;gap:4px;
+  }
+  .tpl.active .name{color:var(--safelight);}
+  .tpl .name em{
+    font-style:normal;font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.06em;
+  }
+
+  /* 컨트롤 */
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:16px;background:none;cursor:pointer;margin:0;
+  }
+  input[type=range]::-webkit-slider-runnable-track{height:3px;background:var(--edge);border-radius:99px;}
+  input[type=range]::-moz-range-track{height:3px;background:var(--edge);border-radius:99px;}
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:13px;height:13px;border-radius:99px;
+    background:var(--text);margin-top:-5px;border:none;transition:background .15s;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:13px;height:13px;border-radius:99px;background:var(--text);border:none;
+  }
+  input[type=range]:hover::-webkit-slider-thumb{background:var(--safelight);}
+  input[type=range]:hover::-moz-range-thumb{background:var(--safelight);}
+
+  select,input[type=text]{
+    width:100%;background:var(--panel-2);border:1px solid var(--edge);
+    border-radius:7px;padding:7px 9px;font-size:12px;
+  }
+  select{cursor:pointer;appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 4l3 3 3-3' fill='none' stroke='%238B949C' stroke-width='1.4'/></svg>");
+    background-repeat:no-repeat;background-position:right 9px center;padding-right:26px;}
+  select:hover,input[type=text]:hover{border-color:#3A424A;}
+  input[type=text]::placeholder{color:var(--dim);}
+
+  .swatch-row{display:flex;gap:6px;align-items:center;}
+  .swatch{
+    width:26px;height:26px;border-radius:6px;border:1px solid var(--edge);
+    cursor:pointer;padding:0;background:none;flex:none;position:relative;overflow:hidden;
+  }
+  .swatch i{position:absolute;inset:2px;border-radius:4px;display:block;}
+  .swatch.active{border-color:var(--safelight);box-shadow:0 0 0 1px var(--safelight);}
+  input[type=color]{
+    width:26px;height:26px;padding:0;border:1px solid var(--edge);border-radius:6px;
+    background:none;cursor:pointer;flex:none;
+  }
+  input[type=color]::-webkit-color-swatch-wrapper{padding:2px;}
+  input[type=color]::-webkit-color-swatch{border:none;border-radius:4px;}
+
+  .seg{display:flex;background:var(--panel-2);border:1px solid var(--edge);border-radius:7px;padding:2px;gap:2px;}
+  .seg button{
+    flex:1;background:none;border:none;border-radius:5px;padding:5px 4px;
+    font-size:11px;font-weight:500;color:var(--muted);cursor:pointer;transition:.13s;white-space:nowrap;
+  }
+  .seg button:hover{color:var(--text);}
+  .seg button.active{background:#2A3138;color:var(--text);}
+
+  /* 토글 스위치 */
+  .switch{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none;}
+  .switch input{position:absolute;opacity:0;width:0;height:0;}
+  .track{
+    width:30px;height:17px;border-radius:99px;background:#2A3037;flex:none;position:relative;transition:.16s;
+  }
+  .track::after{
+    content:'';position:absolute;top:2.5px;left:2.5px;width:12px;height:12px;border-radius:99px;
+    background:#767E86;transition:.16s;
+  }
+  .switch input:checked + .track{background:var(--safelight-dim);}
+  .switch input:checked + .track::after{transform:translateX(13px);background:var(--safelight);}
+  .switch input:focus-visible + .track{outline:2px solid var(--safelight);outline-offset:2px;}
+  .switch .txt{font-size:12px;}
+
+  /* EXIF 항목 리스트 */
+  .exif-list{display:flex;flex-direction:column;gap:2px;}
+  .exif-row{
+    display:grid;grid-template-columns:auto 62px 1fr;align-items:center;gap:8px;
+    padding:4px 6px;border-radius:6px;
+  }
+  .exif-row:hover{background:var(--panel-2);}
+  .exif-row .key{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .exif-row input[type=text]{
+    padding:4px 7px;font-size:11px;font-family:var(--mono);border-color:transparent;background:transparent;
+  }
+  .exif-row input[type=text]:hover,.exif-row input[type=text]:focus{
+    border-color:var(--edge);background:var(--panel-2);
+  }
+  .exif-row.off .key,.exif-row.off input{opacity:.4;}
+  .mini-switch{width:26px;height:15px;}
+  .mini-switch::after{width:10px;height:10px;top:2.2px;left:2.2px;}
+  .switch input:checked + .mini-switch::after{transform:translateX(11px);}
+
+  .btn{
+    display:flex;align-items:center;justify-content:center;gap:7px;
+    background:var(--panel-2);border:1px solid var(--edge);border-radius:8px;
+    padding:9px 12px;font-size:12px;font-weight:600;cursor:pointer;transition:.15s;width:100%;
+  }
+  .btn:hover{border-color:#3A424A;background:#1E2328;}
+  .btn.primary{
+    background:var(--safelight);border-color:var(--safelight);color:#1A1204;
+  }
+  .btn.primary:hover{background:#FFB94C;border-color:#FFB94C;}
+  .btn.primary:disabled{background:#3A342A;border-color:#3A342A;color:#6E665A;cursor:not-allowed;}
+  .btn.ghost{background:none;}
+  .btn-row{display:flex;gap:7px;}
+
+  .hint{font-size:11px;color:var(--dim);line-height:1.45;}
+  .divider{height:1px;background:var(--edge-soft);margin:2px 0;}
+
+  /* ---------- 미리보기 ---------- */
+  .stage{
+    position:relative;min-width:0;min-height:0;
+    display:flex;flex-direction:column;
+    background:
+      radial-gradient(circle at 50% 38%, #16191D 0%, #0B0D0F 72%);
+  }
+  .stage::before{
+    content:'';position:absolute;inset:0;pointer-events:none;opacity:.5;
+    background-image:linear-gradient(var(--edge-soft) 1px,transparent 1px),
+                     linear-gradient(90deg,var(--edge-soft) 1px,transparent 1px);
+    background-size:44px 44px;
+    -webkit-mask-image:radial-gradient(circle at 50% 45%,#000 0%,transparent 70%);
+    mask-image:radial-gradient(circle at 50% 45%,#000 0%,transparent 70%);
+  }
+  .stage-body{
+    flex:1;display:grid;place-items:center;padding:30px;min-height:0;position:relative;overflow:auto;
+  }
+  #preview{
+    max-width:100%;max-height:100%;
+    box-shadow:0 24px 70px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.05);
+    border-radius:2px;display:none;
+  }
+  .empty{
+    text-align:center;position:relative;z-index:1;max-width:340px;
+  }
+  .empty svg{color:#2C333A;margin-bottom:18px;}
+  .empty h2{font-size:16px;margin:0 0 8px;font-weight:600;letter-spacing:-.01em;}
+  .empty p{color:var(--muted);font-size:12.5px;margin:0 0 20px;line-height:1.6;}
+  .empty .kbd{
+    font-family:var(--mono);font-size:10px;color:var(--dim);
+    border:1px solid var(--edge);border-radius:5px;padding:2px 6px;
+  }
+  .stage-foot{
+    flex:none;height:38px;border-top:1px solid var(--edge);
+    background:rgba(19,22,25,.72);backdrop-filter:blur(10px);
+    display:flex;align-items:center;gap:14px;padding:0 16px;
+    font-family:var(--mono);font-size:10.5px;color:var(--dim);position:relative;z-index:2;
+  }
+  .stage-foot .sep{width:1px;height:12px;background:var(--edge);}
+  .stage-foot b{color:var(--muted);font-weight:400;}
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);
+    background:var(--panel-2);border:1px solid var(--edge);border-radius:9px;
+    padding:10px 16px;font-size:12.5px;z-index:99;
+    box-shadow:0 12px 34px rgba(0,0,0,.55);
+    opacity:0;pointer-events:none;transition:.24s cubic-bezier(.2,.7,.3,1);
+    display:flex;align-items:center;gap:9px;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0);}
+  .toast .dot{width:6px;height:6px;border-radius:99px;background:var(--emul);flex:none;}
+  .toast.err .dot{background:var(--danger);}
+
+  @media (max-width:900px){
+    body{overflow:auto;}
+    .main{grid-template-columns:1fr;grid-template-rows:auto auto;}
+    .sidebar{order:2;border-right:none;border-top:1px solid var(--edge);overflow:visible;}
+    .stage{order:1;min-height:52vh;}
+    .app{height:auto;min-height:100dvh;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition-duration:.01ms !important;animation-duration:.01ms !important;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg class="aperture" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M12 3 L12 12 M20.8 15.1 L12 12 M15.1 20.8 L12 12 M3.2 15.1 L12 12 M8.9 20.8 L12 12"/>
+      </svg>
+      <div>
+        <h1>EXIF 프레임 스튜디오</h1>
+        <span>darkroom · v1.0</span>
+      </div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="status" id="status"><span class="dot"></span><span id="statusText">사진 대기 중</span></div>
+  </header>
+
+  <div class="main">
+    <!-- ================= 사이드바 ================= -->
+    <aside class="sidebar">
+
+      <!-- 1. 사진 -->
+      <details class="group" open>
+        <summary>
+          <span class="group-idx">01</span><span class="group-title">사진</span>
+          <svg class="chev" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </summary>
+        <div class="group-body">
+          <div class="drop" id="drop" tabindex="0" role="button" aria-label="사진 불러오기">
+            <svg class="icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+              <rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.4"/><path d="M7.5 5l1-2h7l1 2"/>
+            </svg>
+            <b>사진 끌어다 놓기</b>
+            <small>JPEG 권장 · 클릭해서 찾기</small>
+          </div>
+          <div id="fileCard" style="display:none"></div>
+          <p class="hint">사진은 이 브라우저 안에서만 처리됩니다. 어디에도 업로드되지 않아요.</p>
+        </div>
+      </details>
+
+      <!-- 2. 템플릿 -->
+      <details class="group" open>
+        <summary>
+          <span class="group-idx">02</span><span class="group-title">템플릿</span>
+          <svg class="chev" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </summary>
+        <div class="group-body">
+          <div class="tpl-grid" id="tplGrid"></div>
+        </div>
+      </details>
+
+      <!-- 3. 프레임 -->
+      <details class="group">
+        <summary>
+          <span class="group-idx">03</span><span class="group-title">프레임</span>
+          <svg class="chev" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </summary>
+        <div class="group-body">
+          <div class="field">
+            <div class="field-head"><span class="lbl">테두리 여백</span><span class="val" id="padVal">4.0%</span></div>
+            <input type="range" id="pad" min="0" max="16" step="0.5" value="4">
+          </div>
+          <div class="field">
+            <div class="field-head"><span class="lbl">정보 영역 높이</span><span class="val" id="barVal">13%</span></div>
+            <input type="range" id="bar" min="6" max="42" step="0.5" value="13">
+          </div>
+          <div class="field">
+            <div class="field-head"><span class="lbl">프레임 색상</span><span class="val" id="bgHex">#FFFFFF</span></div>
+            <div class="swatch-row" id="bgSwatches"></div>
+          </div>
+          <div class="field">
+            <div class="field-head"><span class="lbl">사진 모서리 둥글기</span><span class="val" id="radVal">0px</span></div>
+            <input type="range" id="rad" min="0" max="60" step="1" value="0">
+          </div>
+          <div class="field">
+            <div class="field-head"><span class="lbl">사진 그림자</span><span class="val" id="shadowVal">0%</span></div>
+            <input type="range" id="shadow" min="0" max="100" step="1" value="0">
+          </div>
+          <label class="switch"><input type="checkbox" id="hairline"><span class="track"></span><span class="txt">사진 가장자리에 얇은 선</span></label>
+        </div>
+      </details>
+
+      <!-- 4. 텍스트 -->
+      <details class="group">
+        <summary>
+          <span class="group-idx">04</span><span class="group-title">텍스트</span>
+          <svg class="chev" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </summary>
+        <div class="group-body">
+          <div class="field">
+            <span class="lbl">제목 글꼴 · 카메라 이름</span>
+            <select id="fontTitle">
+              <option value="sans">산세리프 — Pretendard</option>
+              <option value="serif">세리프 — Playfair Display</option>
+              <option value="mono">모노스페이스 — JetBrains Mono</option>
+              <option value="cond">콘덴스드 — Oswald</option>
+            </select>
+          </div>
+          <div class="field">
+            <span class="lbl">데이터 글꼴 · 촬영 설정</span>
+            <select id="fontData">
+              <option value="mono">모노스페이스 — JetBrains Mono</option>
+              <option value="sans">산세리프 — Pretendard</option>
+              <option value="serif">세리프 — Playfair Display</option>
+              <option value="cond">콘덴스드 — Oswald</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-head"><span class="lbl">글자 크기</span><span class="val" id="tsVal">100%</span></div>
+            <input type="range" id="ts" min="55" max="185" step="1" value="100">
+          </div>
+          <div class="field">
+            <div class="field-head"><span class="lbl">제목 굵기</span><span class="val" id="twVal">700</span></div>
+            <input type="range" id="tw" min="300" max="800" step="100" value="700">
+          </div>
+          <div class="field">
+            <div class="field-head"><span class="lbl">자간</span><span class="val" id="tlVal">0.00em</span></div>
+            <input type="range" id="tl" min="-4" max="30" step="1" value="0">
+          </div>
+          <div class="field">
+            <div class="field-head"><span class="lbl">글자 색상</span><span class="val" id="fgHex">#111315</span></div>
+            <div class="swatch-row" id="fgSwatches"></div>
+          </div>
+          <div class="field">
+            <span class="lbl">정렬</span>
+            <div class="seg" id="alignSeg">
+              <button data-v="split" class="active">양끝</button>
+              <button data-v="left">왼쪽</button>
+              <button data-v="center">가운데</button>
+              <button data-v="right">오른쪽</button>
+            </div>
+          </div>
+          <label class="switch"><input type="checkbox" id="upper"><span class="track"></span><span class="txt">카메라 이름 대문자로</span></label>
+        </div>
+      </details>
+
+      <!-- 5. 표시 항목 -->
+      <details class="group">
+        <summary>
+          <span class="group-idx">05</span><span class="group-title">표시 항목</span>
+          <svg class="chev" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </summary>
+        <div class="group-body">
+          <div class="btn-row">
+            <button class="btn ghost" id="allOn">전체 켜기</button>
+            <button class="btn ghost" id="allOff">전체 끄기</button>
+          </div>
+          <div class="divider"></div>
+          <div class="exif-list" id="exifList"></div>
+          <p class="hint">값을 직접 고쳐 쓸 수도 있어요. 비어 있는 항목은 프레임에 나오지 않습니다.</p>
+        </div>
+      </details>
+
+      <!-- 6. 로고 & 워터마크 -->
+      <details class="group">
+        <summary>
+          <span class="group-idx">06</span><span class="group-title">로고 &amp; 워터마크</span>
+          <svg class="chev" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </summary>
+        <div class="group-body">
+          <div class="field">
+            <span class="lbl">로고 종류</span>
+            <div class="seg" id="logoSeg">
+              <button data-v="none" class="active">없음</button>
+              <button data-v="brand">카메라 브랜드</button>
+              <button data-v="image">이미지</button>
+            </div>
+          </div>
+          <div id="logoImageBox" style="display:none;">
+            <button class="btn" id="logoPick">로고 이미지 고르기</button>
+            <div id="logoName" class="hint" style="margin-top:7px;"></div>
+          </div>
+          <div class="field">
+            <span class="lbl">로고 위치</span>
+            <div class="seg" id="logoPosSeg">
+              <button data-v="bar-left" class="active">정보 왼쪽</button>
+              <button data-v="bar-right">정보 오른쪽</button>
+              <button data-v="photo">사진 위</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-head"><span class="lbl">로고 크기</span><span class="val" id="logoSzVal">100%</span></div>
+            <input type="range" id="logoSz" min="40" max="240" step="2" value="100">
+          </div>
+          <div class="divider"></div>
+          <div class="field">
+            <span class="lbl">워터마크 문구</span>
+            <input type="text" id="wm" placeholder="예: @your_id">
+          </div>
+          <div class="field">
+            <span class="lbl">워터마크 위치</span>
+            <div class="seg" id="wmPosSeg">
+              <button data-v="br" class="active">오른쪽 아래</button>
+              <button data-v="bl">왼쪽 아래</button>
+              <button data-v="tr">오른쪽 위</button>
+              <button data-v="tl">왼쪽 위</button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-head"><span class="lbl">워터마크 투명도</span><span class="val" id="wmOpVal">65%</span></div>
+            <input type="range" id="wmOp" min="5" max="100" step="1" value="65">
+          </div>
+        </div>
+      </details>
+
+      <!-- 7. 내보내기 -->
+      <details class="group" open>
+        <summary>
+          <span class="group-idx">07</span><span class="group-title">내보내기</span>
+          <svg class="chev" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </summary>
+        <div class="group-body">
+          <div class="field">
+            <span class="lbl">해상도</span>
+            <div class="seg" id="scaleSeg">
+              <button data-v="1" class="active">원본</button>
+              <button data-v="2">2배</button>
+              <button data-v="web">웹용 2000px</button>
+            </div>
+          </div>
+          <button class="btn primary" id="save" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M12 3v12M7 11l5 5 5-5M4 20h16"/>
+            </svg>
+            PNG로 저장
+          </button>
+          <button class="btn ghost" id="reset">설정 되돌리기</button>
+        </div>
+      </details>
+    </aside>
+
+    <!-- ================= 미리보기 ================= -->
+    <section class="stage">
+      <div class="stage-body" id="stageBody">
+        <div class="empty" id="empty">
+          <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.1">
+            <rect x="2.5" y="5" width="19" height="14.5" rx="1.6"/>
+            <circle cx="12" cy="12.2" r="4.2"/><circle cx="12" cy="12.2" r="1.5"/>
+            <path d="M7 5l1-1.6h8L17 5"/><circle cx="18.4" cy="8.3" r=".7" fill="currentColor" stroke="none"/>
+          </svg>
+          <h2>사진을 불러오면 여기에 프레임이 나타납니다</h2>
+          <p>촬영 정보를 읽어와 프레임에 얹어드립니다. 템플릿을 고르고 여백·글꼴·항목을 바꾸면 바로 반영돼요.</p>
+          <p><span class="kbd">Ctrl</span> + <span class="kbd">V</span> 로 붙여넣어도 됩니다</p>
+        </div>
+        <canvas id="preview"></canvas>
+      </div>
+      <div class="stage-foot">
+        <span id="footTpl">템플릿 —</span>
+        <span class="sep"></span>
+        <span id="footSize">출력 —</span>
+        <span class="sep"></span>
+        <span id="footExif">EXIF —</span>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastText"></span></div>
+<input type="file" id="fileInput" accept="image/*" hidden>
+<input type="file" id="logoInput" accept="image/*" hidden>
+
+<script>
+"use strict";
+
+/* ============================================================
+   1. EXIF 파서 (JPEG / TIFF 헤더 직접 해석)
+   ============================================================ */
+const TYPE_SIZE = {1:1,2:1,3:2,4:4,5:8,6:1,7:1,8:2,9:4,10:8,11:4,12:8};
+
+function findExifStart(view){
+  if(view.getUint16(0) !== 0xFFD8) return -1;      // SOI 아님 = JPEG 아님
+  let off = 2;
+  while(off + 4 < view.byteLength){
+    const marker = view.getUint16(off);
+    if((marker & 0xFF00) !== 0xFF00) return -1;
+    const size = view.getUint16(off + 2);
+    if(marker === 0xFFE1 && view.getUint32(off + 4) === 0x45786966) return off + 10;
+    if(marker === 0xFFDA) return -1;               // 이미지 데이터 시작
+    off += 2 + size;
+  }
+  return -1;
+}
+
+function readValue(view, entry, tiff, little){
+  const {type, count, valueOffset} = entry;
+  const size = TYPE_SIZE[type] || 1;
+  const total = size * count;
+  const base = total > 4 ? tiff + valueOffset : entry.self + 8;
+  if(base + total > view.byteLength) return null;
+
+  if(type === 2){                                   // ASCII
+    let s = '';
+    for(let i = 0; i < count; i++){
+      const c = view.getUint8(base + i);
+      if(c === 0) break;
+      s += String.fromCharCode(c);
+    }
+    return s.trim();
+  }
+  const out = [];
+  for(let i = 0; i < count; i++){
+    const p = base + i * size;
+    switch(type){
+      case 1: case 7: out.push(view.getUint8(p)); break;
+      case 3: out.push(view.getUint16(p, little)); break;
+      case 4: out.push(view.getUint32(p, little)); break;
+      case 9: out.push(view.getInt32(p, little)); break;
+      case 5: {
+        const n = view.getUint32(p, little), d = view.getUint32(p + 4, little);
+        out.push(d ? n / d : 0); break;
+      }
+      case 10: {
+        const n = view.getInt32(p, little), d = view.getInt32(p + 4, little);
+        out.push(d ? n / d : 0); break;
+      }
+      default: out.push(view.getUint8(p));
+    }
+  }
+  return count === 1 ? out[0] : out;
+}
+
+function readIFD(view, tiff, ifdOffset, little, into){
+  if(ifdOffset <= 0 || tiff + ifdOffset + 2 > view.byteLength) return;
+  const p0 = tiff + ifdOffset;
+  const n = view.getUint16(p0, little);
+  for(let i = 0; i < n; i++){
+    const self = p0 + 2 + i * 12;
+    if(self + 12 > view.byteLength) return;
+    const entry = {
+      tag: view.getUint16(self, little),
+      type: view.getUint16(self + 2, little),
+      count: view.getUint32(self + 4, little),
+      valueOffset: view.getUint32(self + 8, little),
+      self
+    };
+    into[entry.tag] = readValue(view, entry, tiff, little);
+  }
+}
+
+function parseExif(buffer){
+  try{
+    const view = new DataView(buffer);
+    const tiff = findExifStart(view);
+    if(tiff < 0) return null;
+    const endian = view.getUint16(tiff);
+    if(endian !== 0x4949 && endian !== 0x4D4D) return null;
+    const little = endian === 0x4949;
+    const ifd0Off = view.getUint32(tiff + 4, little);
+
+    const main = {}, sub = {}, gps = {};
+    readIFD(view, tiff, ifd0Off, little, main);
+    if(main[0x8769]) readIFD(view, tiff, main[0x8769], little, sub);
+    if(main[0x8825]) readIFD(view, tiff, main[0x8825], little, gps);
+    return {main, sub, gps, orientation: main[0x0112] || 1};
+  }catch(e){ return null; }
+}
+
+/* --- 태그를 사람이 읽는 문자열로 --- */
+const fmt = {
+  shutter(v){
+    if(!v && v !== 0) return '';
+    if(v >= 1) return (Math.round(v * 10) / 10) + 's';
+    return '1/' + Math.round(1 / v) + 's';
+  },
+  aperture(v){ return v ? 'f/' + (Math.round(v * 10) / 10) : ''; },
+  focal(v){ return v ? Math.round(v) + 'mm' : ''; },
+  iso(v){ return v ? 'ISO ' + (Array.isArray(v) ? v[0] : v) : ''; },
+  ev(v){
+    if(v === undefined || v === null) return '';
+    const r = Math.round(v * 10) / 10;
+    if(r === 0) return '±0EV';
+    return (r > 0 ? '+' : '') + r + 'EV';
+  },
+  date(s){
+    if(!s) return '';
+    const m = String(s).match(/(\d{4}):(\d{2}):(\d{2})\s+(\d{2}):(\d{2})/);
+    if(!m) return String(s);
+    return `${m[1]}.${m[2]}.${m[3]}  ${m[4]}:${m[5]}`;
+  },
+  dms(arr, ref){
+    if(!Array.isArray(arr) || arr.length < 3) return '';
+    const [d, m, s] = arr;
+    return `${Math.round(d)}°${String(Math.round(m)).padStart(2,'0')}'${s.toFixed(1)}"${ref || ''}`;
+  },
+  decimal(arr, ref){
+    if(!Array.isArray(arr) || arr.length < 3) return null;
+    let v = arr[0] + arr[1] / 60 + arr[2] / 3600;
+    if(ref === 'S' || ref === 'W') v = -v;
+    return v;
+  }
+};
+
+function toFields(ex, file, img){
+  const M = ex ? ex.main : {}, S = ex ? ex.sub : {}, G = ex ? ex.gps : {};
+  const make = (M[0x010F] || '').replace(/CORPORATION|Corporation|IMAGING|COMPANY|CO\.,LTD\.?/gi,'').trim();
+  let model = (M[0x0110] || '').trim();
+  if(make && model.toUpperCase().startsWith(make.toUpperCase()))
+    model = model.slice(make.length).trim();
+
+  const lat = fmt.decimal(G[2], G[1]), lon = fmt.decimal(G[4], G[3]);
+  let coord = '';
+  if(lat !== null && lon !== null && !(lat === 0 && lon === 0)){
+    coord = `${fmt.dms(G[2], G[1])} ${fmt.dms(G[4], G[3])}`;
+  }
+  let alt = '';
+  if(G[6] !== undefined){
+    const a = Math.round(G[6] * (G[5] === 1 ? -1 : 1));
+    alt = a + 'm';
+  }
+
+  const focal = fmt.focal(S[0x920A]);
+  const eq = S[0xA405] ? Math.round(S[0xA405]) + 'mm' : '';
+
+  return {
+    make:    make || '',
+    model:   model || '',
+    lens:    (S[0xA434] || M[0xA434] || '').trim(),
+    focal:   focal,
+    focal35: eq && eq !== focal ? eq : '',
+    aperture: fmt.aperture(S[0x829D]),
+    shutter: fmt.shutter(S[0x829A]),
+    iso:     fmt.iso(S[0x8827]),
+    ev:      fmt.ev(S[0x9204]),
+    date:    fmt.date(S[0x9003] || M[0x0132]),
+    gps:     coord,
+    alt:     alt,
+    size:    img ? `${img.naturalWidth} × ${img.naturalHeight}` : '',
+    file:    file ? file.name.replace(/\.[^.]+$/, '') : '',
+    note:    ''
+  };
+}
+
+/* ============================================================
+   2. 상태
+   ============================================================ */
+const FIELD_DEFS = [
+  {k:'make',    label:'제조사',   group:'title', on:true},
+  {k:'model',   label:'모델',     group:'title', on:true},
+  {k:'focal',   label:'초점거리', group:'spec',  on:true},
+  {k:'aperture',label:'조리개',   group:'spec',  on:true},
+  {k:'shutter', label:'셔터',     group:'spec',  on:true},
+  {k:'iso',     label:'ISO',      group:'spec',  on:true},
+  {k:'ev',      label:'노출보정', group:'spec',  on:false},
+  {k:'focal35', label:'환산초점', group:'spec',  on:false},
+  {k:'lens',    label:'렌즈',     group:'meta',  on:true},
+  {k:'date',    label:'촬영일시', group:'meta',  on:true},
+  {k:'gps',     label:'GPS 좌표', group:'meta',  on:false},
+  {k:'alt',     label:'고도',     group:'meta',  on:false},
+  {k:'size',    label:'해상도',   group:'meta',  on:false},
+  {k:'file',    label:'파일명',   group:'meta',  on:false},
+  {k:'note',    label:'직접 입력',group:'meta',  on:false}
+];
+
+const TEMPLATES = [
+  {id:'minimal',  name:'미니멀',   tag:'WHITE',  bg:'#FFFFFF', fg:'#15181A', pad:4,  bar:13, rad:0,  shadow:0,  align:'split'},
+  {id:'film',     name:'필름',     tag:'35MM',   bg:'#15120E', fg:'#EFE3D0', pad:7,  bar:16, rad:0,  shadow:0,  align:'center'},
+  {id:'polaroid', name:'폴라로이드',tag:'SX-70',  bg:'#FBF9F4', fg:'#2A2724', pad:5.5,bar:26, rad:0,  shadow:0,  align:'center'},
+  {id:'brand',    name:'브랜드바', tag:'SPEC',   bg:'#FFFFFF', fg:'#15181A', pad:3,  bar:14, rad:0,  shadow:0,  align:'split'},
+  {id:'card',     name:'카드',     tag:'SOFT',   bg:'#101315', fg:'#E9ECEE', pad:6,  bar:12, rad:22, shadow:55, align:'center'},
+  {id:'overlay',  name:'오버레이', tag:'BLEED',  bg:'#000000', fg:'#FFFFFF', pad:0,  bar:0,  rad:0,  shadow:0,  align:'split'}
+];
+
+const FAMILIES = {
+  sans:  "'Pretendard','Pretendard Variable',-apple-system,system-ui,sans-serif",
+  serif: "'Playfair Display',Georgia,serif",
+  mono:  "'JetBrains Mono',ui-monospace,Menlo,monospace",
+  cond:  "'Oswald','Pretendard',sans-serif"
+};
+
+const DEFAULTS = {
+  tpl:'minimal', pad:4, bar:13, bg:'#FFFFFF', fg:'#15181A', rad:0, shadow:0, hairline:false,
+  fontTitle:'sans', fontData:'mono', ts:100, tw:700, tl:0, align:'split', upper:false,
+  logo:'none', logoPos:'bar-left', logoSz:100, wm:'', wmPos:'br', wmOp:65, scale:'1'
+};
+
+let opt = {...DEFAULTS};
+let photo = null;        // HTMLImageElement
+let photoFile = null;
+let logoImg = null;
+let exifRaw = null;
+let fields = {};         // 값
+let enabled = {};        // 표시 여부
+FIELD_DEFS.forEach(f => enabled[f.k] = f.on);
+
+/* ============================================================
+   3. 캔버스 렌더링
+   ============================================================ */
+const previewCv = document.getElementById('preview');
+
+function orientedSize(img, ori){
+  const swap = ori >= 5 && ori <= 8;
+  return swap
+    ? {w: img.naturalHeight, h: img.naturalWidth}
+    : {w: img.naturalWidth,  h: img.naturalHeight};
+}
+
+function drawOriented(ctx, img, x, y, w, h, ori){
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  const swap = ori >= 5 && ori <= 8;
+  const dw = swap ? h : w, dh = swap ? w : h;
+  switch(ori){
+    case 2: ctx.scale(-1, 1); break;
+    case 3: ctx.rotate(Math.PI); break;
+    case 4: ctx.scale(1, -1); break;
+    case 5: ctx.rotate(Math.PI / 2); ctx.scale(1, -1); break;
+    case 6: ctx.rotate(Math.PI / 2); break;
+    case 7: ctx.rotate(-Math.PI / 2); ctx.scale(1, -1); break;
+    case 8: ctx.rotate(-Math.PI / 2); break;
+  }
+  ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+  ctx.restore();
+}
+
+function roundRectPath(ctx, x, y, w, h, r){
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+}
+
+function setFont(ctx, f){
+  ctx.font = `${f.style || ''} ${f.weight} ${f.size}px ${FAMILIES[f.fam]}`.trim();
+  try{ ctx.letterSpacing = (f.sp || 0) + 'px'; }catch(e){}
+}
+
+function measure(ctx, str, f){ setFont(ctx, f); return ctx.measureText(str).width; }
+
+/* 값이 있고 켜져 있는 항목만 골라 그룹별 문자열로 */
+function composeLines(){
+  const pick = k => enabled[k] && fields[k] ? String(fields[k]).trim() : '';
+  const titleParts = [pick('make'), pick('model')].filter(Boolean);
+  let title = titleParts.join(' ');
+  if(opt.upper) title = title.toUpperCase();
+
+  const spec = [pick('focal'), pick('focal35') && '(' + pick('focal35') + ')',
+                pick('aperture'), pick('shutter'), pick('iso'), pick('ev')]
+               .filter(Boolean).join('   ');
+
+  const metaBits = [pick('lens'), pick('date'), pick('gps'), pick('alt'),
+                    pick('size'), pick('file'), pick('note')].filter(Boolean);
+  return {title, spec, meta: metaBits.join('  ·  '), metaBits};
+}
+
+function brandText(){
+  const b = (fields.make || '').trim();
+  return b ? (opt.upper ? b.toUpperCase() : b) : '';
+}
+
+/* 세로로 쌓아 그리기 */
+function drawStack(ctx, items, x, cy, align){
+  const live = items.filter(i => i.str);
+  if(!live.length) return;
+  const gap = live[0].f.size * 0.34;
+  let total = 0;
+  live.forEach((i, n) => total += i.f.size * 1.12 + (n ? gap : 0));
+  let y = cy - total / 2;
+  ctx.textBaseline = 'top';
+  ctx.textAlign = align;
+  live.forEach((i, n) => {
+    setFont(ctx, i.f);
+    ctx.globalAlpha = i.alpha === undefined ? 1 : i.alpha;
+    ctx.fillStyle = i.color;
+    ctx.fillText(i.str, x, y);
+    ctx.globalAlpha = 1;
+    y += i.f.size * 1.12 + gap;
+  });
+}
+
+function drawLogo(ctx, x, cy, h, align, color){
+  if(opt.logo === 'image' && logoImg){
+    const w = h * (logoImg.naturalWidth / logoImg.naturalHeight);
+    const lx = align === 'right' ? x - w : align === 'center' ? x - w / 2 : x;
+    ctx.drawImage(logoImg, lx, cy - h / 2, w, h);
+    return w;
+  }
+  if(opt.logo === 'brand'){
+    const t = brandText();
+    if(!t) return 0;
+    const f = {fam: opt.fontTitle, weight: 700, size: h * 0.82, sp: h * 0.03};
+    const w = measure(ctx, t, f);
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = align;
+    ctx.fillStyle = color;
+    setFont(ctx, f);
+    ctx.fillText(t, x, cy);
+    return w;
+  }
+  return 0;
+}
+
+function drawWatermark(ctx, px, py, pw, ph, base, color){
+  if(!opt.wm) return;
+  const f = {fam: opt.fontData, weight: 500, size: base * 0.82, sp: base * 0.04};
+  const m = base * 1.5;
+  const right = opt.wmPos === 'br' || opt.wmPos === 'tr';
+  const bottom = opt.wmPos === 'br' || opt.wmPos === 'bl';
+  ctx.save();
+  ctx.globalAlpha = opt.wmOp / 100;
+  ctx.fillStyle = color;
+  ctx.textAlign = right ? 'right' : 'left';
+  ctx.textBaseline = bottom ? 'bottom' : 'top';
+  setFont(ctx, f);
+  ctx.shadowColor = 'rgba(0,0,0,.45)';
+  ctx.shadowBlur = base * 0.5;
+  ctx.fillText(opt.wm, right ? px + pw - m : px + m, bottom ? py + ph - m : py + m);
+  ctx.restore();
+}
+
+/*  핵심 렌더러 — 사진 폭(pw)만 주면 어떤 해상도든 동일한 비율로 그려진다  */
+function render(cv, pw, img, ex){
+  img = img || photo;
+  if(!img) return;
+  const ori = ex !== undefined ? ex : (exifRaw ? exifRaw.orientation : 1);
+  const dim = orientedSize(img, ori);
+  const ph = Math.round(pw * dim.h / dim.w);
+
+  const tpl = opt.tpl;
+  const isOverlay = tpl === 'overlay';
+  let pad = Math.round(pw * opt.pad / 100);
+  let bar = Math.round(pw * opt.bar / 100);
+  if(tpl === 'film') pad = Math.max(pad, Math.round(pw * 0.055));
+  if(isOverlay){ pad = 0; bar = 0; }
+
+  const W = pw + pad * 2;
+  const H = ph + pad + (isOverlay ? 0 : bar);
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  ctx.textRendering = 'geometricPrecision';
+
+  /* 배경 */
+  ctx.fillStyle = opt.bg;
+  ctx.fillRect(0, 0, W, H);
+  if(tpl === 'polaroid'){
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, 'rgba(0,0,0,0.035)');
+    g.addColorStop(0.35, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  if(tpl === 'card'){
+    const g = ctx.createRadialGradient(W / 2, H * 0.35, 0, W / 2, H * 0.35, W * 0.8);
+    g.addColorStop(0, 'rgba(255,255,255,0.045)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+
+  /* 사진 */
+  const px = pad, py = pad;
+  const rad = tpl === 'card' ? Math.max(opt.rad, 1) * (pw / 1200) * 1.0 + opt.rad : opt.rad * (pw / 1200);
+  const r = Math.round(opt.rad * pw / 1200);
+
+  ctx.save();
+  if(opt.shadow > 0 && !isOverlay){
+    ctx.shadowColor = `rgba(0,0,0,${0.16 + opt.shadow / 100 * 0.5})`;
+    ctx.shadowBlur = pw * (opt.shadow / 100) * 0.09;
+    ctx.shadowOffsetY = pw * (opt.shadow / 100) * 0.028;
+    ctx.fillStyle = '#000';
+    roundRectPath(ctx, px, py, pw, ph, r);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  ctx.save();
+  roundRectPath(ctx, px, py, pw, ph, r);
+  ctx.clip();
+  drawOriented(ctx, img, px, py, pw, ph, ori);
+  ctx.restore();
+
+  if(opt.hairline && !isOverlay){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,.16)';
+    ctx.lineWidth = Math.max(1, pw * 0.0009);
+    roundRectPath(ctx, px + 0.5, py + 0.5, pw - 1, ph - 1, r);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* 타이포 기준 크기 */
+  const base = pw * 0.0175 * (opt.ts / 100);
+  const sp = base * (opt.tl / 100);
+  const L = composeLines();
+  const fg = opt.fg;
+  const dimC = hexAlpha(opt.fg, 0.55);
+
+  const fTitle = {fam: opt.fontTitle, weight: opt.tw, size: base * 1.06, sp: sp};
+  const fSpec  = {fam: opt.fontData,  weight: 500,    size: base * 0.9,  sp: sp + base * 0.02};
+  const fMeta  = {fam: opt.fontData,  weight: 400,    size: base * 0.78, sp: sp};
+
+  const barTop = py + ph;
+  const barCy = barTop + bar / 2;
+  const inset = tpl === 'polaroid' || tpl === 'card' ? pad : Math.max(pad, pw * 0.012);
+  const leftX = px + (tpl === 'minimal' || tpl === 'brand' ? 0 : inset - pad);
+  const rightX = px + pw;
+
+  /* --- 템플릿별 정보 영역 --- */
+  if(tpl === 'film'){
+    drawSprockets(ctx, W, H, pad, opt.fg);
+  }
+
+  if(!isOverlay){
+    const align = opt.align;
+    const logoH = base * 1.9 * (opt.logoSz / 100);
+    const hasLogo = opt.logo !== 'none' && (opt.logo === 'image' ? !!logoImg : !!brandText());
+    const logoOnBar = hasLogo && opt.logoPos !== 'photo';
+    const logoLeft = opt.logoPos === 'bar-left';
+
+    let cLeft = leftX, cRight = rightX;
+    let logoW = 0;
+
+    if(logoOnBar){
+      const lx = logoLeft ? leftX : rightX;
+      logoW = drawLogo(ctx, lx, barCy, logoH, logoLeft ? 'left' : 'right', fg);
+      if(logoW > 0){
+        const gapL = base * 1.15;
+        if(logoLeft){
+          cLeft = leftX + logoW + gapL;
+          // 세로 구분선
+          ctx.save();
+          ctx.globalAlpha = .28; ctx.fillStyle = fg;
+          ctx.fillRect(leftX + logoW + gapL * 0.5, barCy - logoH * 0.55,
+                       Math.max(1, pw * 0.0008), logoH * 1.1);
+          ctx.restore();
+        }else{
+          cRight = rightX - logoW - gapL;
+          ctx.save();
+          ctx.globalAlpha = .28; ctx.fillStyle = fg;
+          ctx.fillRect(rightX - logoW - gapL * 0.5, barCy - logoH * 0.55,
+                       Math.max(1, pw * 0.0008), logoH * 1.1);
+          ctx.restore();
+        }
+      }
+    }
+
+    if(tpl === 'polaroid'){
+      const cx = (cLeft + cRight) / 2;
+      drawStack(ctx, [
+        {str: L.title, f: {...fTitle, size: base * 1.3}, color: fg},
+        {str: L.spec,  f: fSpec, color: dimC},
+        {str: L.meta,  f: fMeta, color: dimC, alpha: .85}
+      ], align === 'left' ? cLeft : align === 'right' ? cRight : cx,
+         barCy, align === 'left' ? 'left' : align === 'right' ? 'right' : 'center');
+    }
+    else if(align === 'split'){
+      drawStack(ctx, [
+        {str: L.title, f: fTitle, color: fg},
+        {str: L.meta,  f: fMeta,  color: dimC}
+      ], cLeft, barCy, 'left');
+      drawStack(ctx, [
+        {str: L.spec, f: fSpec, color: fg}
+      ], cRight, barCy, 'right');
+    }
+    else{
+      const cx = align === 'left' ? cLeft : align === 'right' ? cRight : (cLeft + cRight) / 2;
+      const a  = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
+      drawStack(ctx, [
+        {str: L.title, f: fTitle, color: fg},
+        {str: L.spec,  f: fSpec,  color: dimC},
+        {str: L.meta,  f: fMeta,  color: dimC, alpha: .85}
+      ], cx, barCy, a);
+    }
+
+    if(hasLogo && opt.logoPos === 'photo'){
+      drawLogo(ctx, px + pw - base * 1.6, py + base * 1.6 + logoH / 2, logoH, 'right', '#FFFFFF');
+    }
+  }else{
+    /* 오버레이 — 사진 위에 스크림 + 텍스트 */
+    const scrimH = ph * 0.3;
+    const g = ctx.createLinearGradient(0, py + ph - scrimH, 0, py + ph);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.72)');
+    ctx.fillStyle = g;
+    ctx.fillRect(px, py + ph - scrimH, pw, scrimH);
+
+    const m = base * 2.2;
+    const cy = py + ph - m - base * 1.5;
+    if(opt.align === 'split'){
+      drawStack(ctx, [
+        {str: L.title, f: fTitle, color: opt.fg},
+        {str: L.meta,  f: fMeta,  color: hexAlpha(opt.fg, .72)}
+      ], px + m, cy, 'left');
+      drawStack(ctx, [{str: L.spec, f: fSpec, color: opt.fg}], px + pw - m, cy, 'right');
+    }else{
+      const a = opt.align === 'right' ? 'right' : opt.align === 'center' ? 'center' : 'left';
+      const x = a === 'right' ? px + pw - m : a === 'center' ? px + pw / 2 : px + m;
+      drawStack(ctx, [
+        {str: L.title, f: fTitle, color: opt.fg},
+        {str: L.spec,  f: fSpec,  color: hexAlpha(opt.fg, .82)},
+        {str: L.meta,  f: fMeta,  color: hexAlpha(opt.fg, .66)}
+      ], x, cy, a);
+    }
+    if(opt.logo !== 'none'){
+      const logoH = base * 1.9 * (opt.logoSz / 100);
+      drawLogo(ctx, px + pw - base * 2.2, py + base * 2.2 + logoH / 2, logoH, 'right', opt.fg);
+    }
+  }
+
+  drawWatermark(ctx, px, py, pw, ph, base, isOverlay ? opt.fg : '#FFFFFF');
+  return {W, H};
+}
+
+/* 필름 스프로킷 구멍 */
+function drawSprockets(ctx, W, H, pad, color){
+  const hw = pad * 0.42, hh = hw * 0.62, r = hh * 0.28;
+  const step = hw * 2.05;
+  ctx.save();
+  ctx.fillStyle = hexAlpha(color, 0.16);
+  for(let x = step * 0.6; x < W - hw; x += step){
+    roundRectPath(ctx, x, pad * 0.29 - hh / 2 + hh / 2 - hh / 2, hw, hh, r);
+    ctx.fill();
+    roundRectPath(ctx, x, H - pad * 0.29 - hh, hw, hh, r);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function hexAlpha(hex, a){
+  const h = hex.replace('#','');
+  const n = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const num = parseInt(n, 16);
+  return `rgba(${(num>>16)&255},${(num>>8)&255},${num&255},${a})`;
+}
+
+/* ============================================================
+   4. 미리보기 / 썸네일 갱신
+   ============================================================ */
+let raf = null;
+function update(){
+  if(raf) cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(() => {
+    raf = null;
+    if(!photo){ renderThumbs(); return; }
+    const dim = orientedSize(photo, exifRaw ? exifRaw.orientation : 1);
+    const previewW = Math.min(1500, Math.max(700, dim.w));
+    const out = render(previewCv, previewW);
+    previewCv.style.display = 'block';
+    document.getElementById('empty').style.display = 'none';
+    renderThumbs();
+    const ex = exportSize();
+    document.getElementById('footTpl').textContent =
+      '템플릿 ' + TEMPLATES.find(t => t.id === opt.tpl).name;
+    document.getElementById('footSize').textContent = `출력 ${ex.W} × ${ex.H}px`;
+  });
+}
+
+function exportSize(){
+  if(!photo) return {W:0,H:0,pw:0};
+  const dim = orientedSize(photo, exifRaw ? exifRaw.orientation : 1);
+  let pw = dim.w;
+  if(opt.scale === '2') pw = dim.w * 2;
+  if(opt.scale === 'web') pw = Math.round(2000 * dim.w / Math.max(dim.w, dim.h));
+  pw = Math.min(pw, 9000);
+  const pad = Math.round(pw * (opt.tpl === 'overlay' ? 0 : opt.pad) / 100);
+  const bar = Math.round(pw * (opt.tpl === 'overlay' ? 0 : opt.bar) / 100);
+  const ph = Math.round(pw * dim.h / dim.w);
+  return {W: pw + pad * 2, H: ph + pad + bar, pw};
+}
+
+/* 템플릿 썸네일 */
+let placeholderImg = null;
+function makePlaceholder(){
+  const c = document.createElement('canvas');
+  c.width = 480; c.height = 320;
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, 320);
+  g.addColorStop(0, '#2C3B4A'); g.addColorStop(.55, '#54606B'); g.addColorStop(1, '#8A8177');
+  x.fillStyle = g; x.fillRect(0, 0, 480, 320);
+  x.fillStyle = 'rgba(240,169,59,.85)';
+  x.beginPath(); x.arc(355, 96, 30, 0, 7); x.fill();
+  x.fillStyle = '#26313A';
+  x.beginPath(); x.moveTo(0, 250); x.lineTo(130, 150); x.lineTo(250, 250); x.closePath(); x.fill();
+  x.fillStyle = '#1B2329';
+  x.beginPath(); x.moveTo(160, 250); x.lineTo(300, 130); x.lineTo(480, 250); x.lineTo(480, 320); x.lineTo(0, 320); x.lineTo(0,250); x.closePath(); x.fill();
+  const img = new Image();
+  img.src = c.toDataURL();
+  return img;
+}
+
+function renderThumbs(){
+  const src = photo || placeholderImg;
+  if(!src || !src.complete) return;
+  const ori = photo ? (exifRaw ? exifRaw.orientation : 1) : 1;
+  const saved = {...opt};
+  TEMPLATES.forEach(t => {
+    const cv = document.querySelector(`.tpl[data-id="${t.id}"] canvas`);
+    if(!cv) return;
+    Object.assign(opt, {tpl: t.id, pad: t.pad, bar: t.bar, bg: t.bg, fg: t.fg,
+                        rad: t.rad, shadow: t.shadow, align: t.align,
+                        logo: 'none', wm: '', ts: 130});
+    render(cv, 320, src, ori);
+  });
+  Object.assign(opt, saved);
+}
+
+/* ============================================================
+   5. UI 배선
+   ============================================================ */
+const $ = s => document.querySelector(s);
+const toastEl = $('#toast');
+let toastTimer;
+function toast(msg, err){
+  $('#toastText').textContent = msg;
+  toastEl.classList.toggle('err', !!err);
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
+}
+
+/* --- 템플릿 갤러리 --- */
+const tplGrid = $('#tplGrid');
+TEMPLATES.forEach(t => {
+  const b = document.createElement('button');
+  b.className = 'tpl' + (t.id === opt.tpl ? ' active' : '');
+  b.dataset.id = t.id;
+  b.innerHTML = `<canvas></canvas><span class="name">${t.name}<em>${t.tag}</em></span>`;
+  b.addEventListener('click', () => applyTemplate(t.id));
+  tplGrid.appendChild(b);
+});
+
+function applyTemplate(id){
+  const t = TEMPLATES.find(x => x.id === id);
+  Object.assign(opt, {
+    tpl: t.id, pad: t.pad, bar: t.bar, bg: t.bg, fg: t.fg,
+    rad: t.rad, shadow: t.shadow, align: t.align
+  });
+  document.querySelectorAll('.tpl').forEach(el =>
+    el.classList.toggle('active', el.dataset.id === id));
+  syncControls();
+  update();
+}
+
+/* --- 색상 스와치 --- */
+const BG_PRESETS = ['#FFFFFF','#F5F1E8','#111315','#15120E','#1B2733','#2E2A28'];
+const FG_PRESETS = ['#15181A','#FFFFFF','#8A8F94','#F0A93B','#7FD3C4','#B45C3E'];
+
+function buildSwatches(host, presets, key, hexLabel){
+  host.innerHTML = '';
+  presets.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'swatch';
+    b.title = c;
+    b.innerHTML = `<i style="background:${c}"></i>`;
+    b.addEventListener('click', () => { opt[key] = c; syncSwatch(host, key, hexLabel); update(); });
+    host.appendChild(b);
+  });
+  const inp = document.createElement('input');
+  inp.type = 'color'; inp.value = opt[key]; inp.title = '직접 고르기';
+  inp.addEventListener('input', e => {
+    opt[key] = e.target.value.toUpperCase();
+    syncSwatch(host, key, hexLabel); update();
+  });
+  host.appendChild(inp);
+}
+function syncSwatch(host, key, hexLabel){
+  [...host.querySelectorAll('.swatch')].forEach(b =>
+    b.classList.toggle('active', b.title.toUpperCase() === opt[key].toUpperCase()));
+  const ci = host.querySelector('input[type=color]');
+  if(ci) ci.value = opt[key];
+  $(hexLabel).textContent = opt[key].toUpperCase();
+}
+buildSwatches($('#bgSwatches'), BG_PRESETS, 'bg', '#bgHex');
+buildSwatches($('#fgSwatches'), FG_PRESETS, 'fg', '#fgHex');
+
+/* --- 슬라이더 --- */
+const sliders = [
+  ['pad','#pad','#padVal', v => v.toFixed(1) + '%'],
+  ['bar','#bar','#barVal', v => v.toFixed(0) + '%'],
+  ['rad','#rad','#radVal', v => Math.round(v) + 'px'],
+  ['shadow','#shadow','#shadowVal', v => Math.round(v) + '%'],
+  ['ts','#ts','#tsVal', v => Math.round(v) + '%'],
+  ['tw','#tw','#twVal', v => String(Math.round(v))],
+  ['tl','#tl','#tlVal', v => (v / 100).toFixed(2) + 'em'],
+  ['logoSz','#logoSz','#logoSzVal', v => Math.round(v) + '%'],
+  ['wmOp','#wmOp','#wmOpVal', v => Math.round(v) + '%']
+];
+sliders.forEach(([key, sel, valSel, f]) => {
+  const el = $(sel);
+  el.addEventListener('input', () => {
+    opt[key] = parseFloat(el.value);
+    $(valSel).textContent = f(opt[key]);
+    update();
+  });
+});
+
+/* --- 셀렉트 & 스위치 --- */
+$('#fontTitle').addEventListener('change', e => { opt.fontTitle = e.target.value; update(); });
+$('#fontData').addEventListener('change',  e => { opt.fontData  = e.target.value; update(); });
+$('#upper').addEventListener('change', e => { opt.upper = e.target.checked; update(); });
+$('#hairline').addEventListener('change', e => { opt.hairline = e.target.checked; update(); });
+$('#wm').addEventListener('input', e => { opt.wm = e.target.value; update(); });
+
+/* --- 세그먼트 --- */
+function segment(sel, key, after){
+  const host = $(sel);
+  host.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if(!b) return;
+    opt[key] = b.dataset.v;
+    [...host.children].forEach(c => c.classList.toggle('active', c === b));
+    if(after) after();
+    update();
+  });
+}
+segment('#alignSeg','align');
+segment('#logoSeg','logo', () => {
+  $('#logoImageBox').style.display = opt.logo === 'image' ? 'block' : 'none';
+});
+segment('#logoPosSeg','logoPos');
+segment('#wmPosSeg','wmPos');
+segment('#scaleSeg','scale');
+
+/* --- EXIF 항목 리스트 --- */
+const exifList = $('#exifList');
+function buildExifList(){
+  exifList.innerHTML = '';
+  FIELD_DEFS.forEach(def => {
+    const row = document.createElement('div');
+    row.className = 'exif-row' + (enabled[def.k] ? '' : ' off');
+    row.innerHTML = `
+      <label class="switch">
+        <input type="checkbox" ${enabled[def.k] ? 'checked' : ''} aria-label="${def.label} 표시">
+        <span class="track mini-switch"></span>
+      </label>
+      <span class="key">${def.label}</span>
+      <input type="text" value="${(fields[def.k] || '').replace(/"/g,'&quot;')}" placeholder="—">`;
+    const cb = row.querySelector('input[type=checkbox]');
+    const tx = row.querySelector('input[type=text]');
+    cb.addEventListener('change', () => {
+      enabled[def.k] = cb.checked;
+      row.classList.toggle('off', !cb.checked);
+      update();
+    });
+    tx.addEventListener('input', () => { fields[def.k] = tx.value; update(); });
+    exifList.appendChild(row);
+  });
+}
+$('#allOn').addEventListener('click', () => {
+  FIELD_DEFS.forEach(f => enabled[f.k] = true); buildExifList(); update();
+});
+$('#allOff').addEventListener('click', () => {
+  FIELD_DEFS.forEach(f => enabled[f.k] = false); buildExifList(); update();
+});
+
+/* --- 파일 불러오기 --- */
+const drop = $('#drop'), fileInput = $('#fileInput');
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('keydown', e => {
+  if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileInput.click(); }
+});
+fileInput.addEventListener('change', e => { if(e.target.files[0]) loadPhoto(e.target.files[0]); });
+
+['dragenter','dragover'].forEach(ev =>
+  document.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hot'); }));
+['dragleave','drop'].forEach(ev =>
+  document.addEventListener(ev, e => { e.preventDefault(); if(ev === 'drop' || e.target === document) drop.classList.remove('hot'); }));
+document.addEventListener('drop', e => {
+  const f = [...(e.dataTransfer.files || [])].find(f => f.type.startsWith('image/'));
+  if(f) loadPhoto(f);
+});
+document.addEventListener('paste', e => {
+  const it = [...(e.clipboardData.items || [])].find(i => i.type.startsWith('image/'));
+  if(it) loadPhoto(it.getAsFile());
+});
+
+function setStatus(text, cls){
+  const s = $('#status');
+  s.className = 'status' + (cls ? ' ' + cls : '');
+  $('#statusText').textContent = text;
+}
+
+async function loadPhoto(file){
+  if(!file || !file.type.startsWith('image/')) return toast('이미지 파일만 불러올 수 있어요.', true);
+  setStatus('읽는 중…');
+  const buf = await file.arrayBuffer();
+  exifRaw = parseExif(buf);
+
+  const img = new Image();
+  img.onload = () => {
+    photo = img; photoFile = file;
+    fields = toFields(exifRaw, file, img);
+    // 값 없는 항목은 자동으로 꺼두기
+    FIELD_DEFS.forEach(f => { if(!fields[f.k]) enabled[f.k] = false; else enabled[f.k] = f.on; });
+    buildExifList();
+    $('#save').disabled = false;
+
+    const found = FIELD_DEFS.filter(f => fields[f.k]).length;
+    if(exifRaw && found > 2){
+      setStatus(`촬영 정보 ${found}개 인식`, 'ok');
+      $('#footExif').textContent = `EXIF ${found}개 항목`;
+      toast('촬영 정보를 읽었어요.');
+    }else{
+      setStatus('촬영 정보 없음 — 직접 입력', 'warn');
+      $('#footExif').textContent = 'EXIF 없음';
+      toast('이 사진엔 촬영 정보가 없어요. 05번에서 직접 채워 넣으세요.', true);
+    }
+    showFileCard(file, img);
+    update();
+  };
+  img.onerror = () => { setStatus('열 수 없는 파일', 'warn'); toast('이 이미지를 열 수 없어요. JPEG나 PNG로 시도해 보세요.', true); };
+  img.src = URL.createObjectURL(file);
+}
+
+function showFileCard(file, img){
+  const dim = orientedSize(img, exifRaw ? exifRaw.orientation : 1);
+  const card = $('#fileCard');
+  card.style.display = 'block';
+  card.innerHTML = `<div class="filecard">
+      <img src="${img.src}" alt="">
+      <div class="meta">
+        <div class="name">${file.name}</div>
+        <div class="sub">${dim.w}×${dim.h} · ${(file.size/1048576).toFixed(1)}MB</div>
+      </div>
+      <button class="icon-btn" id="clearPhoto" title="사진 비우기" aria-label="사진 비우기">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>`;
+  drop.style.display = 'none';
+  $('#clearPhoto').addEventListener('click', clearPhoto);
+}
+
+function clearPhoto(){
+  photo = null; photoFile = null; exifRaw = null; fields = {};
+  FIELD_DEFS.forEach(f => enabled[f.k] = f.on);
+  buildExifList();
+  $('#fileCard').style.display = 'none';
+  drop.style.display = 'block';
+  previewCv.style.display = 'none';
+  $('#empty').style.display = 'block';
+  $('#save').disabled = true;
+  setStatus('사진 대기 중');
+  $('#footExif').textContent = 'EXIF —';
+  $('#footSize').textContent = '출력 —';
+  renderThumbs();
+}
+
+/* --- 로고 --- */
+$('#logoPick').addEventListener('click', () => $('#logoInput').click());
+$('#logoInput').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if(!f) return;
+  const img = new Image();
+  img.onload = () => { logoImg = img; $('#logoName').textContent = f.name; update(); };
+  img.src = URL.createObjectURL(f);
+});
+
+/* --- 저장 --- */
+$('#save').addEventListener('click', () => {
+  if(!photo) return;
+  const {pw} = exportSize();
+  const out = document.createElement('canvas');
+  render(out, pw);
+  out.toBlob(blob => {
+    if(!blob) return toast('저장에 실패했어요. 해상도를 낮춰 다시 시도해 보세요.', true);
+    const a = document.createElement('a');
+    const stem = (photoFile ? photoFile.name.replace(/\.[^.]+$/, '') : 'photo');
+    a.download = `${stem}_${opt.tpl}.png`;
+    a.href = URL.createObjectURL(blob);
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    toast('PNG로 저장했어요.');
+  }, 'image/png');
+});
+
+/* --- 되돌리기 --- */
+$('#reset').addEventListener('click', () => {
+  opt = {...DEFAULTS};
+  logoImg = null; $('#logoName').textContent = '';
+  FIELD_DEFS.forEach(f => { enabled[f.k] = fields[f.k] ? f.on : false; });
+  buildExifList();
+  applyTemplate(DEFAULTS.tpl);
+  syncControls();
+  update();
+  toast('처음 설정으로 돌아갔어요.');
+});
+
+/* --- 컨트롤 ↔ 상태 동기화 --- */
+function syncControls(){
+  sliders.forEach(([key, sel, valSel, f]) => {
+    $(sel).value = opt[key];
+    $(valSel).textContent = f(opt[key]);
+  });
+  $('#fontTitle').value = opt.fontTitle;
+  $('#fontData').value = opt.fontData;
+  $('#upper').checked = opt.upper;
+  $('#hairline').checked = opt.hairline;
+  $('#wm').value = opt.wm;
+  [['#alignSeg','align'],['#logoSeg','logo'],['#logoPosSeg','logoPos'],
+   ['#wmPosSeg','wmPos'],['#scaleSeg','scale']].forEach(([sel, key]) => {
+    [...$(sel).children].forEach(b => b.classList.toggle('active', b.dataset.v === String(opt[key])));
+  });
+  $('#logoImageBox').style.display = opt.logo === 'image' ? 'block' : 'none';
+  syncSwatch($('#bgSwatches'), 'bg', '#bgHex');
+  syncSwatch($('#fgSwatches'), 'fg', '#fgHex');
+}
+
+/* --- 시작 --- */
+placeholderImg = makePlaceholder();
+placeholderImg.onload = () => renderThumbs();
+FIELD_DEFS.forEach(f => fields[f.k] = '');
+fields.make = 'FUJIFILM'; fields.model = 'X-T5'; fields.lens = 'XF 35mm F1.4 R';
+fields.focal = '35mm'; fields.aperture = 'f/1.4'; fields.shutter = '1/250s';
+fields.iso = 'ISO 320'; fields.date = '2026.03.14  17:42';
+buildExifList();
+FIELD_DEFS.forEach(f => fields[f.k] = f.k === 'note' ? '' : fields[f.k]);
+syncControls();
+setStatus('사진 대기 중');
+
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(() => { renderThumbs(); update(); });
+}
+</script>
+</body>
+</html>
